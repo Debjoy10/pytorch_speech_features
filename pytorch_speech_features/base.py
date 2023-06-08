@@ -50,7 +50,7 @@ def mfcc(signal,samplerate=16000,winlen=0.025,winstep=0.01,numcep=13,
          nfilt=26,nfft=None,lowfreq=0,highfreq=None,preemph=0.97,ceplifter=22,appendEnergy=True,
          winfunc=lambda x:numpy.ones((x,))):
     """Compute MFCC features from an audio signal.
-    :param signal: the audio signal from which to compute features. Should be an N*1 array
+    :param signal: the audio signal from which to compute features. Should be an N*1 tensor
     :param samplerate: the sample rate of the signal we are working with, in Hz.
     :param winlen: the length of the analysis window in seconds. Default is 0.025s (25 milliseconds)
     :param winstep: the step between successive windows in seconds. Default is 0.01s (10 milliseconds)
@@ -63,7 +63,7 @@ def mfcc(signal,samplerate=16000,winlen=0.025,winstep=0.01,numcep=13,
     :param ceplifter: apply a lifter to final cepstral coefficients. 0 is no lifter. Default is 22.
     :param appendEnergy: if this is true, the zeroth cepstral coefficient is replaced with the log of the total frame energy.
     :param winfunc: the analysis window to apply to each frame. By default no window is applied. You can use numpy window functions here e.g. winfunc=numpy.hamming
-    :returns: A numpy array of size (NUMFRAMES by numcep) containing features. Each row holds 1 feature vector.
+    :returns: A torch tensor of size (NUMFRAMES by numcep) containing features. Each row holds 1 feature vector.
     """
     nfft = nfft or calculate_nfft(samplerate, winlen)
     feat,energy = fbank(signal,samplerate,winlen,winstep,nfilt,nfft,lowfreq,highfreq,preemph,winfunc)
@@ -77,7 +77,7 @@ def fbank(signal,samplerate=16000,winlen=0.025,winstep=0.01,
           nfilt=26,nfft=512,lowfreq=0,highfreq=None,preemph=0.97,
           winfunc=lambda x:numpy.ones((x,))):
     """Compute Mel-filterbank energy features from an audio signal.
-    :param signal: the audio signal from which to compute features. Should be an N*1 array -- tensor
+    :param signal: the audio signal from which to compute features. Should be an N*1 tensor
     :param samplerate: the sample rate of the signal we are working with, in Hz.
     :param winlen: the length of the analysis window in seconds. Default is 0.025s (25 milliseconds)
     :param winstep: the step between successive windows in seconds. Default is 0.01s (10 milliseconds)
@@ -87,27 +87,27 @@ def fbank(signal,samplerate=16000,winlen=0.025,winstep=0.01,
     :param highfreq: highest band edge of mel filters. In Hz, default is samplerate/2
     :param preemph: apply preemphasis filter with preemph as coefficient. 0 is no filter. Default is 0.97.
     :param winfunc: the analysis window to apply to each frame. By default no window is applied. You can use numpy window functions here e.g. winfunc=numpy.hamming
-    :returns: 2 values. The first is a numpy array of size (NUMFRAMES by nfilt) containing features. Each row holds 1 feature vector. The
-        second return value is the energy in each frame (total energy, unwindowed)
+    :returns: 2 values. The first is a torch tensor of size (NUMFRAMES by nfilt) containing features. Each row holds 1 feature vector. The
+        second return value is the energy in each frame (total energy, unwindowed), also a torch tensor.
     """
-    highfreq= highfreq or samplerate/2
+    device = signal.device
+    highfreq = highfreq or samplerate/2
     signal = sigproc.preemphasis(signal,preemph)
     frames = sigproc.framesig(signal, winlen*samplerate, winstep*samplerate, winfunc)
     pspec = sigproc.powspec(frames,nfft)
     energy = torch.sum(pspec,1) # this stores the total energy in each frame
     energy = torch.where(energy == 0,numpy.finfo(float).eps,energy) # if energy is zero, we get problems with log
-
-    fb = torch.DoubleTensor(get_filterbanks(nfilt,nfft,samplerate,lowfreq,highfreq)).cuda()
+    
+    fb = torch.DoubleTensor(get_filterbanks(nfilt,nfft,samplerate,lowfreq,highfreq)).to(device)
     feat = torch.matmul(pspec,fb.T) # compute the filterbank energies
     feat = torch.where(feat == 0, numpy.finfo(float).eps, feat) # if feat is zero, we get problems with log
-
     return feat,energy
 
 def logfbank(signal,samplerate=16000,winlen=0.025,winstep=0.01,
              nfilt=26,nfft=512,lowfreq=0,highfreq=None,preemph=0.97,
              winfunc=lambda x:numpy.ones((x,))):
     """Compute log Mel-filterbank energy features from an audio signal.
-    :param signal: the audio signal from which to compute features. Should be an N*1 array -- tensor
+    :param signal: the audio signal from which to compute features. Should be an N*1 tensor
     :param samplerate: the sample rate of the signal we are working with, in Hz.
     :param winlen: the length of the analysis window in seconds. Default is 0.025s (25 milliseconds)
     :param winstep: the step between successive windows in seconds. Default is 0.01s (10 milliseconds)
@@ -117,10 +117,41 @@ def logfbank(signal,samplerate=16000,winlen=0.025,winstep=0.01,
     :param highfreq: highest band edge of mel filters. In Hz, default is samplerate/2
     :param preemph: apply preemphasis filter with preemph as coefficient. 0 is no filter. Default is 0.97.
     :param winfunc: the analysis window to apply to each frame. By default no window is applied. You can use numpy window functions here e.g. winfunc=numpy.hamming
-    :returns: A numpy array of size (NUMFRAMES by nfilt) containing features. Each row holds 1 feature vector.
+    :returns: A torch tensor of size (NUMFRAMES by nfilt) containing features. Each row holds 1 feature vector.
     """
+    device = signal.device
     feat,energy = fbank(signal,samplerate,winlen,winstep,nfilt,nfft,lowfreq,highfreq,preemph,winfunc)
     return torch.log(feat)
+
+def ssc(signal,samplerate=16000,winlen=0.025,winstep=0.01,
+        nfilt=26,nfft=512,lowfreq=0,highfreq=None,preemph=0.97,
+        winfunc=lambda x:numpy.ones((x,))):
+    """Compute Spectral Subband Centroid features from an audio signal.
+
+    :param signal: the audio signal from which to compute features. Should be an N*1 tensor
+    :param samplerate: the sample rate of the signal we are working with, in Hz.
+    :param winlen: the length of the analysis window in seconds. Default is 0.025s (25 milliseconds)
+    :param winstep: the step between successive windows in seconds. Default is 0.01s (10 milliseconds)
+    :param nfilt: the number of filters in the filterbank, default 26.
+    :param nfft: the FFT size. Default is 512.
+    :param lowfreq: lowest band edge of mel filters. In Hz, default is 0.
+    :param highfreq: highest band edge of mel filters. In Hz, default is samplerate/2
+    :param preemph: apply preemphasis filter with preemph as coefficient. 0 is no filter. Default is 0.97.
+    :param winfunc: the analysis window to apply to each frame. By default no window is applied. You can use numpy window functions here e.g. winfunc=numpy.hamming
+    :returns: A torch tensor of size (NUMFRAMES by nfilt) containing features. Each row holds 1 feature vector.
+    """
+    device = signal.device
+    highfreq = highfreq or samplerate/2
+    signal = sigproc.preemphasis(signal,preemph)
+    frames = sigproc.framesig(signal, winlen*samplerate, winstep*samplerate, winfunc)
+    pspec = sigproc.powspec(frames,nfft)
+    pspec = torch.where(pspec == 0,numpy.finfo(float).eps,pspec) # if things are all zeros we get problems
+
+    fb = torch.DoubleTensor(get_filterbanks(nfilt,nfft,samplerate,lowfreq,highfreq)).to(device)
+    feat = torch.matmul(pspec,fb.T) # compute the filterbank energies
+    R = torch.tile(torch.linspace(1, samplerate/2, pspec.size(1)), (pspec.size(0), 1)).to(device)
+
+    return torch.matmul(pspec*R,fb.T) / feat
 
 def hz2mel(hz):
     """Convert a value in Hertz to Mels
@@ -168,14 +199,33 @@ def get_filterbanks(nfilt=20,nfft=512,samplerate=16000,lowfreq=0,highfreq=None):
 def lifter(cepstra, L=22):
     """Apply a cepstral lifter the the matrix of cepstra. This has the effect of increasing the
     magnitude of the high frequency DCT coeffs.
-    :param cepstra: the matrix of mel-cepstra, will be numframes * numcep in size.
+    :param cepstra: the torch tensor of mel-cepstra, will be numframes * numcep in size.
     :param L: the liftering coefficient to use. Default is 22. L <= 0 disables lifter.
     """
+    device = cepstra.device
     if L > 0:
         nframes,ncoeff = cepstra.shape
         n = torch.arange(ncoeff)
-        lift = (1 + (L/2.)*torch.sin(numpy.pi*n/L)).cuda() 
+        lift = (1 + (L/2.)*torch.sin(numpy.pi*n/L)).to(device)
         return lift*cepstra
     else:
         # values of L <= 0, do nothing
         return cepstra
+
+def delta(feat, N):
+    """Compute delta features from a feature vector sequence.
+
+    :param feat: A torch tensor of size (NUMFRAMES by number of features) containing features. Each row holds 1 feature vector.
+    :param N: For each frame, calculate delta features based on preceding and following N frames
+    :returns: A torch tensor of size (NUMFRAMES by number of features) containing delta features. Each row holds 1 delta feature vector.
+    """
+    device = feat.device
+    if N < 1:
+        raise ValueError('N must be an integer >= 1')
+    NUMFRAMES = len(feat)
+    denominator = 2 * sum([i**2 for i in range(1, N+1)])
+    delta_feat = torch.empty_like(feat).to(device)
+    padded = torch.nn.functional.pad(feat.unsqueeze(0), (0, 0, N, N), mode='replicate').squeeze(0)   # padded version of feat
+    for t in range(NUMFRAMES):
+        delta_feat[t] = torch.matmul(torch.arange(-N, N+1).to(torch.double).to(device), padded[t : t+2*N+1]) / denominator   # [t : t+2*N+1] == [(N+t)-N : (N+t)+N+1]
+    return delta_feat
