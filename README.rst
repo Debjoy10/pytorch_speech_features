@@ -19,6 +19,14 @@ use <https://github.com/Debjoy10/pytorch_speech_features/blob/main/demo.ipynb>`_
 Installation
 ------------
 
+   Install from PyPI
+
+::
+
+   pip install pytorch-speech-features
+
+..
+
    Install from GitHub
 
 ::
@@ -37,6 +45,12 @@ Functions same as python_speech_features (`Refer to its documentation here <http
 ::
 
 See example use given above.
+
+| Supported features:
+-  Mel Frequency Cepstral Coefficients
+- Filterbank Energies
+- Log Filterbank Energies
+- Spectral Subband Centroids
 
 Testing
 -------
