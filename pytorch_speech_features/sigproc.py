@@ -1,6 +1,5 @@
-# This file includes routines for basic signal processing including framing and computing power spectra.
-# Original Author from python_speech_features: James Lyons 2012
-# Including only a subset of functions
+# This file includes routines for basic signal processing including framing and power spectra computation.
+# Author: Debjoy Saha 2023
 
 import numpy
 import math
@@ -17,7 +16,7 @@ def rolling_window(a, window, step=1):
 
 def framesig(sig, frame_len, frame_step, winfunc=lambda x:numpy.ones((x,)), stride_trick=True):
     """Frame a signal into overlapping frames.
-    :param sig: the audio signal to frame. -- DoubleTensor
+    :param sig: the audio signal to frame. -- N*1 tensor
     :param frame_len: length of each frame measured in samples.
     :param frame_step: number of samples after the start of the previous frame that the next frame should begin.
     :param winfunc: the analysis window to apply to each frame. By default no window is applied.
@@ -34,24 +33,24 @@ def framesig(sig, frame_len, frame_step, winfunc=lambda x:numpy.ones((x,)), stri
         numframes = 1 + int(math.ceil((1.0 * slen - frame_len) / frame_step))
     padlen = int((numframes - 1) * frame_step + frame_len)
 
-    zeros = torch.zeros((padlen - slen,)).to(device)
+    zeros = torch.zeros((padlen - slen,), device = device)
     padsignal = torch.cat((sig, zeros))
     if stride_trick:
-        win = torch.DoubleTensor(winfunc(frame_len)).to(device)
+        win = torch.tensor(winfunc(frame_len), dtype = torch.double, device = device)
         frames = rolling_window(padsignal, window=frame_len, step=frame_step)
     else:
         indices = numpy.tile(numpy.arange(0, frame_len), (numframes, 1)) + numpy.tile(
             numpy.arange(0, numframes * frame_step, frame_step), (frame_len, 1)).T
         indices = numpy.array(indices, dtype=numpy.int32)
         frames = padsignal[indices]
-        win = torch.DoubleTensor(winfunc(frame_len)).to(device)
+        win = torch.tensor(winfunc(frame_len), dtype = torch.double, device = device)
         win = torch.tile(win, (numframes, 1))
     return frames * win
 
 def deframesig(frames, siglen, frame_len, frame_step, winfunc=lambda x: numpy.ones((x,))):
     """Does overlap-add procedure to undo the action of framesig.
 
-    :param frames: the array of frames.
+    :param frames: the array of frames -- NxD tensor
     :param siglen: the length of the desired signal, use 0 if unknown. Output will be truncated to siglen samples.
     :param frame_len: length of each frame measured in samples.
     :param frame_step: number of samples after the start of the previous frame that the next frame should begin.
@@ -70,9 +69,9 @@ def deframesig(frames, siglen, frame_len, frame_step, winfunc=lambda x: numpy.on
     padlen = (numframes - 1) * frame_step + frame_len
 
     if siglen <= 0: siglen = padlen
-    rec_signal = torch.zeros((padlen,), dtype = torch.double).to(device)
-    window_correction = torch.zeros((padlen,), dtype = torch.double).to(device)
-    win = torch.DoubleTensor(winfunc(frame_len)).to(device)
+    rec_signal = torch.zeros((padlen,), dtype = torch.double, device = device)
+    window_correction = torch.zeros((padlen,), dtype = torch.double, device = device)
+    win = torch.tensor(winfunc(frame_len), dtype = torch.double, device = device)
 
     for i in range(0, numframes):
         window_correction[indices[i, :]] = window_correction[

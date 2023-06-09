@@ -1,5 +1,6 @@
 # calculate filterbank features. Provides e.g. fbank and mfcc features for use in ASR applications
-# Original Author from python_speech_features: James Lyons 2012
+# Author: Debjoy Saha 2023
+
 from __future__ import division
 import numpy
 from pytorch_speech_features import sigproc
@@ -10,7 +11,6 @@ from torch.autograd import Function
 class DCTfunc(Function):
     """
     SciPy DCT wrapper for torch
-    https://pytorch.org/tutorials/advanced/numpy_extensions_tutorial.html
     """
     @staticmethod
     def forward(ctx, input):
@@ -98,7 +98,7 @@ def fbank(signal,samplerate=16000,winlen=0.025,winstep=0.01,
     energy = torch.sum(pspec,1) # this stores the total energy in each frame
     energy = torch.where(energy == 0,numpy.finfo(float).eps,energy) # if energy is zero, we get problems with log
     
-    fb = torch.DoubleTensor(get_filterbanks(nfilt,nfft,samplerate,lowfreq,highfreq)).to(device)
+    fb = torch.tensor(get_filterbanks(nfilt,nfft,samplerate,lowfreq,highfreq), dtype = torch.double, device = device)
     feat = torch.matmul(pspec,fb.T) # compute the filterbank energies
     feat = torch.where(feat == 0, numpy.finfo(float).eps, feat) # if feat is zero, we get problems with log
     return feat,energy
@@ -119,7 +119,6 @@ def logfbank(signal,samplerate=16000,winlen=0.025,winstep=0.01,
     :param winfunc: the analysis window to apply to each frame. By default no window is applied. You can use numpy window functions here e.g. winfunc=numpy.hamming
     :returns: A torch tensor of size (NUMFRAMES by nfilt) containing features. Each row holds 1 feature vector.
     """
-    device = signal.device
     feat,energy = fbank(signal,samplerate,winlen,winstep,nfilt,nfft,lowfreq,highfreq,preemph,winfunc)
     return torch.log(feat)
 
@@ -147,9 +146,9 @@ def ssc(signal,samplerate=16000,winlen=0.025,winstep=0.01,
     pspec = sigproc.powspec(frames,nfft)
     pspec = torch.where(pspec == 0,numpy.finfo(float).eps,pspec) # if things are all zeros we get problems
 
-    fb = torch.DoubleTensor(get_filterbanks(nfilt,nfft,samplerate,lowfreq,highfreq)).to(device)
+    fb = torch.tensor(get_filterbanks(nfilt,nfft,samplerate,lowfreq,highfreq), dtype = torch.double, device = device)
     feat = torch.matmul(pspec,fb.T) # compute the filterbank energies
-    R = torch.tile(torch.linspace(1, samplerate/2, pspec.size(1)), (pspec.size(0), 1)).to(device)
+    R = torch.tile(torch.linspace(1, samplerate/2, pspec.size(1), device = device), (pspec.size(0), 1))
 
     return torch.matmul(pspec*R,fb.T) / feat
 
@@ -205,8 +204,8 @@ def lifter(cepstra, L=22):
     device = cepstra.device
     if L > 0:
         nframes,ncoeff = cepstra.shape
-        n = torch.arange(ncoeff)
-        lift = (1 + (L/2.)*torch.sin(numpy.pi*n/L)).to(device)
+        n = torch.arange(ncoeff, device = device)
+        lift = (1 + (L/2.)*torch.sin(numpy.pi*n/L))
         return lift*cepstra
     else:
         # values of L <= 0, do nothing
@@ -224,8 +223,8 @@ def delta(feat, N):
         raise ValueError('N must be an integer >= 1')
     NUMFRAMES = len(feat)
     denominator = 2 * sum([i**2 for i in range(1, N+1)])
-    delta_feat = torch.empty_like(feat).to(device)
+    delta_feat = torch.empty_like(feat, device = device)
     padded = torch.nn.functional.pad(feat.unsqueeze(0), (0, 0, N, N), mode='replicate').squeeze(0)   # padded version of feat
     for t in range(NUMFRAMES):
-        delta_feat[t] = torch.matmul(torch.arange(-N, N+1).to(torch.double).to(device), padded[t : t+2*N+1]) / denominator   # [t : t+2*N+1] == [(N+t)-N : (N+t)+N+1]
+        delta_feat[t] = torch.matmul(torch.arange(-N, N+1, dtype = torch.double, device = device), padded[t : t+2*N+1]) / denominator   # [t : t+2*N+1] == [(N+t)-N : (N+t)+N+1]
     return delta_feat
