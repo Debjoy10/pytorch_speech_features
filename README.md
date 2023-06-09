@@ -1,5 +1,7 @@
 # pytorch_speech_features
 
+[![DOI](https://zenodo.org/badge/470451115.svg)](https://zenodo.org/badge/latestdoi/470451115)
+
 A simple PyTorch reimplementation of library [python_speech_features](https://github.com/jameslyons/python_speech_features). 
 
 ## Uses
@@ -42,7 +44,17 @@ Two things to test for pytorch_speech_features operations -
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1Tyizr62YGi5-CR-o-tawV6pu68JT3DOF?usp=sharing)
 
 ## Citation
-*TODO*
+```
+@misc{https://doi.org/10.5281/zenodo.8021586,
+  doi = {10.5281/ZENODO.8021586},
+  url = {https://zenodo.org/record/8021586},
+  author = {{Debjoy Saha}},
+  title = {Debjoy10/pytorch_speech_features: Release v0.0.1},
+  publisher = {Zenodo},
+  year = {2023},
+  copyright = {Open Access}
+}
+```
 
 ## References
 * Python_speech_features library - [Link](https://github.com/jameslyons/python_speech_features)
