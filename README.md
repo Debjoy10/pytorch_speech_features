@@ -6,7 +6,7 @@ A simple PyTorch reimplementation of library [python_speech_features](https://gi
 
 ## Uses
 
-* **Great for Intepretability experiments** - All audio processing operations can be performed and the results can be backpropagated to the original signal tensor.
+* **Great for Interpretability experiments** - All audio processing operations can be performed and the results can be backpropagated to the original signal tensor.
 * **Supports Hybrid Model Design** - Parametric operations at different stages of audio processing.  
 
 [Example use](https://github.com/Debjoy10/pytorch_speech_features/blob/main/demo.ipynb)
